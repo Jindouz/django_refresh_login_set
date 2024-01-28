@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Book Management System</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        .container {
+            margin-top: 50px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <h2>Login</h2>
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="username">Username:</label>
+                <input type="text" class="form-control" id="username" placeholder="Enter username">
+            </div>
+            <div class="form-group">
+                <label for="password">Password:</label>
+                <input type="password" class="form-control" id="password" placeholder="Enter password">
+            </div>
+            <button type="button" class="btn btn-primary" onclick="login()">Login</button>
+            <button type="button" class="btn btn-secondary" onclick="logout()">Logout</button>
+        </form>
+
+        <br>
+
+        <h2>Add New Book</h2>
+        <form id="addBookForm">
+            <div class="form-group">
+                <label for="name">name:</label>
+                <input type="text" class="form-control" id="name" placeholder="Enter name">
+            </div>
+            <div class="form-group">
+                <label for="author">Author:</label>
+                <input type="text" class="form-control" id="author" placeholder="Enter author">
+            </div>
+            <div class="form-group">
+                <label for="year">Year:</label>
+                <input type="number" class="form-control" id="year" placeholder="Enter year">
+            </div>
+            <button type="button" class="btn btn-primary" onclick="addBook()">Add Book</button>
+        </form>
+
+        <h2>Books</h2>
+        <div id="booksList"></div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.6/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+    <script>
+
+        MY_SERVER = 'http://127.0.0.1:8000/';
+        function login() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            axios.post(`${MY_SERVER}login`, { username, password })
+                .then(response => {
+                    const token = response.data.access; // Assuming the server returns a token upon successful login
+                    localStorage.setItem('token', token);
+                    setAuthorizationHeader(token);
+                    Toastify({
+                        text: 'Login successful',
+                        backgroundColor: 'green',
+                    }).showToast();
+                    getBooks();
+                })
+                .catch(error => {
+                    Toastify({
+                        text: 'Login failed',
+                        backgroundColor: 'red',
+                    }).showToast();
+                    console.error('Login error:', error);
+                });
+        }
+
+        function logout() {
+            localStorage.removeItem('token');
+            delete axios.defaults.headers.common['Authorization'];
+            getBooks();
+            Toastify({
+                text: 'Logged out successfully',
+                backgroundColor: 'green',
+            }).showToast();
+            // Optionally, you can redirect the user to the login page after logging out
+        }
+
+        function setAuthorizationHeader(token) {
+            axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        }
+
+        const getBooks = async () => {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                // If token is not available, redirect the user to the login page or show a login prompt
+                return;
+            }
+
+            await axios.get(`${MY_SERVER}books/currentuser`, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                }
+            })
+                .then(response => {
+                    const books = response.data;
+                    const booksList = document.getElementById('booksList');
+                    booksList.innerHTML = ''; // Clear previous books
+                    books.forEach(book => {
+                        const bookItem = document.createElement('div');
+                        bookItem.innerHTML = `<div>Name: ${book.name} - Author: ${book.author} - Year: ${book.year}</div>`;
+
+                        // Create buttons for CRUD operations
+                        const editButton = document.createElement('button');
+                        editButton.textContent = 'Edit';
+                        editButton.className = 'btn btn-primary mr-2';
+                        editButton.onclick = () => editBook(book.id);
+                        bookItem.appendChild(editButton);
+
+                        const deleteButton = document.createElement('button');
+                        deleteButton.textContent = 'Delete';
+                        deleteButton.className = 'btn btn-danger';
+                        deleteButton.onclick = () => deleteBook(book.id);
+
+                        bookItem.appendChild(editButton);
+                        bookItem.appendChild(deleteButton);
+
+                        booksList.appendChild(bookItem);
+                    });
+                })
+                .catch(error => {
+                    Toastify({
+                        text: 'Failed to fetch books',
+                        backgroundColor: 'red',
+                    }).showToast();
+                    console.error('Books fetch error:', error);
+                });
+        }
+
+        const addBook = async () => {
+            const name = document.getElementById('name').value;
+            const author = document.getElementById('author').value;
+            const year = document.getElementById('year').value;
+
+            const token = localStorage.getItem('token');
+            if (!token) {
+                Toastify({
+                    text: 'Please login to perform this action',
+                    backgroundColor: 'red',
+                }).showToast();
+                return;
+            }
+
+            const bookData = {
+                name: name,
+                author: author,
+                year: parseInt(year) // Ensure year is converted to an integer
+            };
+            console.log('Book data:', bookData);
+
+
+            axios.post(`${MY_SERVER}books/`, bookData, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json', // Set content type to JSON
+                }
+            })
+                .then(response => {
+                    console.log('Book added:', response.data);
+                    Toastify({
+                        text: 'Book added successfully',
+                        backgroundColor: 'green',
+                    }).showToast();
+                    getBooks(); // Refresh the books list after adding a new book
+                })
+                .catch(error => {
+                    if (error.response && error.response.status === 401) {
+                        Toastify({
+                            text: 'Please login to perform this action',
+                            backgroundColor: 'red',
+                        }).showToast();
+                    } else {
+                        Toastify({
+                            text: 'Failed to add book',
+                            backgroundColor: 'red',
+                        }).showToast();
+                        console.error('Add book error:', error);
+                    }
+                });
+        }
+
+        // CRUD operations
+
+        // Function to handle editing a book
+        const editBook= async(bookId)=> {
+            // Prompt the user to enter the updated book information
+            const newName = prompt("Enter the new name for the book:");
+            const newAuthor = prompt("Enter the new author for the book:");
+            const newYear = prompt("Enter the new year for the book:");
+
+            // Prepare the updated book data
+            const updatedBookData = {
+                name: newName,
+                author: newAuthor,
+                year: parseInt(newYear)
+            };
+
+            // Send a PUT request to update the book
+            const token = localStorage.getItem('token');
+            if (!token) {
+                Toastify({
+                    text: 'Please login to perform this action',
+                    backgroundColor: 'red',
+                }).showToast();
+                return;
+            }
+
+            axios.put(`${MY_SERVER}books/${bookId}/`, updatedBookData, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                }
+            })
+                .then(response => {
+                    Toastify({
+                        text: 'Book updated successfully',
+                        backgroundColor: 'green',
+                    }).showToast();
+                    getBooks(); // Refresh the books list after editing
+                })
+                .catch(error => {
+                    if (error.response && error.response.status === 401) {
+                        Toastify({
+                            text: 'Please login to perform this action',
+                            backgroundColor: 'red',
+                        }).showToast();
+                    } else {
+                        Toastify({
+                            text: 'Failed to update book',
+                            backgroundColor: 'red',
+                        }).showToast();
+                        console.error('Edit book error:', error);
+                    }
+                });
+        }
+
+        function deleteBook(bookId) {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                Toastify({
+                    text: 'Please login to perform this action',
+                    backgroundColor: 'red',
+                }).showToast();
+                return;
+            }
+
+            axios.delete(`${MY_SERVER}books/${bookId}`, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                }
+            })
+                .then(response => {
+                    Toastify({
+                        text: 'Book deleted successfully',
+                        backgroundColor: 'green',
+                    }).showToast();
+                    // Optionally, you may want to refresh the books list after deletion.
+                    getBooks();
+                })
+                .catch(error => {
+                    Toastify({
+                        text: 'Failed to delete book',
+                        backgroundColor: 'red',
+                    }).showToast();
+                    console.error('Delete book error:', error);
+                });
+        }
+
+        // On page load, check if the user is already logged in and fetch books
+        window.onload = function () {
+            const token = localStorage.getItem('token');
+            if (token) {
+                setAuthorizationHeader(token);
+                getBooks();
+            }
+        };
+
+    </script>
+</body>
+
+</html>
