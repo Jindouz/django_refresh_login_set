@@ -8,7 +8,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth.models import User
 from rest_framework import status
-
+from django.core.files.storage import default_storage
 
 class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
     @classmethod
@@ -27,13 +27,6 @@ class MyTokenObtainPairView(TokenObtainPairView):
     serializer_class = MyTokenObtainPairSerializer
 
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def getNotes(request):
-	return Response("im protected")
-
-
-
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -44,16 +37,17 @@ def books_currentuser(req):
         return Response (BookSerializer(temp_task,many=True).data)
 
 
-
-
-
-
-
 @api_view(['GET'])
 def index(request):
     return Response('hello')
 
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def getNotes(request):
+	return Response("im protected")
+
+#=======================
 
 @api_view(['GET','POST','DELETE','PUT','PATCH'])
 def books(req,id=-1):
@@ -70,7 +64,7 @@ def books(req,id=-1):
         if not req.user.is_authenticated:
             return Response("Unauthorized", status=status.HTTP_401_UNAUTHORIZED)
         
-        # ALT: Assign the user ID to the book being created
+        # ALT: Assign the user ID from here instead of the serializer
         # req.data['user'] = req.user.id
         # ser = BookSerializer(data=req.data)
 
@@ -84,8 +78,12 @@ def books(req,id=-1):
         try:
             temp_book=Book.objects.get(id=id)
         except Book.DoesNotExist:
-            return Response ("not found")    
-       
+            return Response ("not found")   
+         
+        # Delete the associated image file
+        if temp_book.img_path:
+            default_storage.delete(temp_book.img_path.path)
+
         temp_book.delete()
         return Response ("deleted")
     if req.method =='PUT':
@@ -102,8 +100,8 @@ def books(req,id=-1):
             return Response(serialized_data)
         else:
             return Response(ser.errors)
-
-
+    
+#=======================
 
 # register
 @api_view(['POST'])

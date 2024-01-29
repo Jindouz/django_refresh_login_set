@@ -10,4 +10,4 @@ class Book(models.Model):
     img_path = models.ImageField(null=True,blank=True,default=None)
    
     def __str__(self):
-        return f'{self.name} {self.author} {self.year} {self.user}'
+        return f'{self.name} {self.author} {self.year} {self.user} {self.img_path}'

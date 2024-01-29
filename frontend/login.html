@@ -14,6 +14,9 @@
 </head>
 
 <body>
+    <br>
+    <div id="welcome"></div>
+    <button onclick="refreshTokenButton()">refresh_test</button>
 
     <div class="container">
         <!-- Login Form -->
@@ -28,7 +31,12 @@
                     <label for="password">Password:</label>
                     <input type="password" class="form-control" id="password" placeholder="Enter password">
                 </div>
+                <div class="remember-me">
+                    <input type="checkbox" id="remember" name="remember">
+                    <label for="remember">Remember me</label>
+                </div>
                 <button type="button" class="btn btn-primary" onclick="login()">Login</button>
+                <p>waga1/123</p>
             </form>
         </div>
 
@@ -38,30 +46,33 @@
         </div>
 
         <br>
+        <div id="addBookFormSection">
+            <h2>Add New Book</h2>
+            <form id="addBookForm">
+                <div class="form-group">
+                    <label for="name">name:</label>
+                    <input type="text" class="form-control" id="name" placeholder="Enter name">
+                </div>
+                <div class="form-group">
+                    <label for="author">Author:</label>
+                    <input type="text" class="form-control" id="author" placeholder="Enter author">
+                </div>
+                <div class="form-group">
+                    <label for="year">Year:</label>
+                    <input type="number" class="form-control" id="year" placeholder="Enter year">
+                </div>
+                <div class="mb-3">
+                    <label for="image" class="form-label">Book Image (Optional):</label>
+                    <input type="file" id="image" name="image" class="form-control">
+                </div>
+                <button type="button" class="btn btn-primary" onclick="addBook()">Add Book</button>
+            </form>
+        </div>
 
-        <h2>Add New Book</h2>
-        <form id="addBookForm">
-            <div class="form-group">
-                <label for="name">name:</label>
-                <input type="text" class="form-control" id="name" placeholder="Enter name">
-            </div>
-            <div class="form-group">
-                <label for="author">Author:</label>
-                <input type="text" class="form-control" id="author" placeholder="Enter author">
-            </div>
-            <div class="form-group">
-                <label for="year">Year:</label>
-                <input type="number" class="form-control" id="year" placeholder="Enter year">
-            </div>
-            <div class="mb-3">
-                <label for="image" class="form-label">Book Image (Optional):</label>
-                <input type="file" id="image" name="image" class="form-control">
-            </div>
-            <button type="button" class="btn btn-primary" onclick="addBook()">Add Book</button>
-        </form>
-
-        <h2>Books</h2>
-        <div id="booksList"></div>
+        <div id="booksListSection">
+            <h2>Books</h2>
+            <div id="booksList"></div>
+        </div>
     </div>
 
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
@@ -73,56 +84,162 @@
 
         MY_SERVER = 'http://127.0.0.1:8000/';
 
-        // Function to toggle login form visibility
-        // Function to toggle login/logout sections
+
         function toggleSections(loggedIn) {
             const loginSection = document.getElementById('loginSection');
             const logoutSection = document.getElementById('logoutSection');
-            loginSection.style.display = loggedIn ? 'none' : 'block';
-            logoutSection.style.display = loggedIn ? 'block' : 'none';
+            const addBookForm = document.getElementById('addBookFormSection');
+            const booksList = document.getElementById('booksListSection');
+
+            if (loggedIn) {
+                loginSection.style.display = 'none';
+                logoutSection.style.display = 'block';
+                addBookForm.style.display = 'block';
+                booksList.style.display = 'block';
+            } else {
+                loginSection.style.display = 'block';
+                logoutSection.style.display = 'none';
+                addBookForm.style.display = 'none';
+                booksList.style.display = 'none';
+            }
         }
+
+        // Function to check if access token is valid
+        const checkAccessToken = async () => {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                // If access token is not available, log the user out
+                logout();
+                return;
+            }
+
+            try {
+                // Decode the access token to check its expiration time
+                const decodedToken = JSON.parse(atob(token.split('.')[1]));
+                const currentTimeInSeconds = Math.floor(Date.now() / 1000); // Convert current time to seconds
+                const accessTokenExpiration = decodedToken.exp;
+                if (currentTimeInSeconds >= accessTokenExpiration) {
+                    // If access token is expired, attempt to refresh it
+                    await refreshToken();
+                } else {
+                    // If access token is valid, continue with any actions that require authentication
+                    setAuthorizationHeader(token);
+                    toggleSections(true);
+                    getBooks();
+                }
+            } catch (error) {
+                console.error('Error decoding access token:', error);
+                logout();
+            }
+        }
+
+        // Function to refresh the access token
+        const refreshToken = async () => {
+            const refreshToken = localStorage.getItem('refresh');
+            if (!refreshToken) {
+                // If refresh token is not available, log the user out
+                logout();
+                return;
+            }
+
+            console.log('Sending refresh token:', refreshToken);
+
+            try {
+                const response = await axios.post(`${MY_SERVER}token/refresh/`, { "refresh": JSON.parse(refreshToken) });
+                const newAccessToken = response.data.access;
+                const newRefreshToken = response.data.refresh;
+                localStorage.setItem('token', newAccessToken);
+                localStorage.setItem("refresh", JSON.stringify(newRefreshToken))
+                setAuthorizationHeader(newAccessToken);
+
+                getBooks();
+            } catch (error) {
+
+                console.error('Error refreshing token:', error);
+                logout();
+            }
+        }
+
+
+        const refreshTokenButton = async () => {
+            const refreshToken = localStorage.getItem('refresh');
+            if (!refreshToken) {
+                console.log('Refresh token not found');
+                return;
+            }
+
+            console.log('Sending refresh token:', refreshToken);
+
+            try {
+                const response = await axios.post(`${MY_SERVER}token/refresh/`, { "refresh": JSON.parse(refreshToken) });
+                const newAccessToken = response.data.access;
+                const newRefreshToken = response.data.refresh;
+                localStorage.setItem('token', newAccessToken);
+                localStorage.setItem("refresh", JSON.stringify(newRefreshToken))
+                setAuthorizationHeader(newAccessToken);
+                console.log('Refreshed access token:', newAccessToken);
+                getBooks();
+            } catch (error) {
+                console.error('Error refreshing token:', error);
+            }
+        }
+
 
         // Function to check if user is logged in
         function checkLoggedIn() {
             const token = localStorage.getItem('token');
+            const logoutSection = document.getElementById('logoutSection');
             if (token) {
-                setAuthorizationHeader(token);
+                // User is logged in
                 toggleSections(true);
-                getBooks();
+                // Proceed with token check
+                checkAccessToken();
+            } else {
+                // User is not logged in
+                toggleSections(false);
             }
         }
 
+
         // Function to perform login
-        function login() {
+        const login = async () => {
             const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
 
             axios.post(`${MY_SERVER}login`, { username, password })
                 .then(response => {
-                    const token = response.data.access; // Assuming the server returns a token upon successful login
+                    let token = response.data.access;
+                    let refreshToken = response.data.refresh;
                     localStorage.setItem('token', token);
+                    if (remember.checked) localStorage.setItem("refresh", JSON.stringify(refreshToken));
                     setAuthorizationHeader(token);
                     Toastify({
                         text: 'Login successful',
-                        backgroundColor: 'green',
+                        style: {
+                            background: 'green'
+                        },
                     }).showToast();
                     toggleSections(true);
                     getBooks();
+                    tokenInfo();
                 })
                 .catch(error => {
                     Toastify({
                         text: 'Login failed',
-                        backgroundColor: 'red',
+                        style: {
+                            background: 'red'
+                        },
                     }).showToast();
                     console.error('Login error:', error);
                 });
         }
 
         // Function to perform logout
-        function logout() {
-            localStorage.removeItem('token');
+        const logout = async () => {
+            await localStorage.removeItem('token');
+            await localStorage.removeItem('refresh');
             toggleSections(false);
-            location.reload(); // Refresh the page to clear the books list
+            location.reload();
         }
 
         function setAuthorizationHeader(token) {
@@ -132,7 +249,12 @@
         const getBooks = async () => {
             const token = localStorage.getItem('token');
             if (!token) {
-                // If token is not available, redirect the user to the login page or show a login prompt
+                Toastify({
+                    text: 'Please login to perform this action',
+                    style: {
+                        background: 'red'
+                    },
+                }).showToast();
                 return;
             }
 
@@ -146,9 +268,28 @@
                     books.sort((a, b) => b.id - a.id);
                     const booksList = document.getElementById('booksList');
                     booksList.innerHTML = ''; // Clear previous books
+
+                    const decodedToken = JSON.parse(atob(token.split('.')[1]));
+                    const username = decodedToken.username;
+
+                    if (username) {
+                        const welcome = document.getElementById('welcome');
+                        welcome.innerHTML = `<h3>Welcome ${username}</h3>`;
+                    }
+
                     books.forEach(book => {
                         const bookItem = document.createElement('div');
-                        bookItem.innerHTML = `<div>Name: ${book.name} - Author: ${book.author} - Year: ${book.year}</div>`;
+
+                        if (book.img_path == null) {
+                            book.img_path = 'media/default_book.jpg';
+                        }
+
+                        // Book image
+                        const bookImage = document.createElement('img');
+                        bookImage.src = `${MY_SERVER}/${book.img_path}`;
+                        bookImage.className = 'card-img-left';
+                        bookImage.style.maxWidth = '80px';
+                        bookItem.innerHTML = `<br><img id="img" src="${MY_SERVER}/${book.img_path}" style="max-width: 80px;">  <div>Name: ${book.name} - Author: ${book.author} - Year: ${book.year}</div>`;
 
                         // Create buttons for CRUD operations
                         const editButton = document.createElement('button');
@@ -171,7 +312,9 @@
                 .catch(error => {
                     Toastify({
                         text: 'Failed to fetch books',
-                        backgroundColor: 'red',
+                        style: {
+                            background: 'red'
+                        },
                     }).showToast();
                     console.error('Books fetch error:', error);
                 });
@@ -181,57 +324,65 @@
             const name = document.getElementById('name').value;
             const author = document.getElementById('author').value;
             const year = document.getElementById('year').value;
-            const img = document.getElementById('img').value;
+            const imageInput = document.getElementById('image');
 
             const token = localStorage.getItem('token');
             if (!token) {
                 Toastify({
                     text: 'Please login to perform this action',
-                    backgroundColor: 'red',
+                    style: {
+                        background: 'red'
+                    },
                 }).showToast();
                 return;
             }
 
-            const bookData = {
-                name: name,
-                author: author,
-                year: parseInt(year), // Ensure year is converted to an integer
-                img : img
-            };
-            console.log('Book data:', bookData);
+            const formData = new FormData();
+            formData.append('name', name);
+            formData.append('author', author);
+            formData.append('year', year);
+            if (imageInput.files.length > 0) {
+                formData.append('img_path', imageInput.files[0]);
+            }
 
 
-            axios.post(`${MY_SERVER}books/`, bookData, {
+            axios.post(`${MY_SERVER}books/`, formData, {
                 headers: {
                     Authorization: `Bearer ${token}`,
-                    'Content-Type': 'application/json', // Set content type to JSON
+                    'Content-Type': 'multipart/form-data',
                 }
             })
                 .then(response => {
                     console.log('Book added:', response.data);
                     Toastify({
                         text: 'Book added successfully',
-                        backgroundColor: 'green',
+                        style: {
+                            background: 'green'
+                        },
                     }).showToast();
-                    getBooks(); // Refresh the books list after adding a new book
+                    getBooks();
                 })
                 .catch(error => {
                     if (error.response && error.response.status === 401) {
                         Toastify({
                             text: 'Please login to perform this action',
-                            backgroundColor: 'red',
+                            style: {
+                                background: 'red'
+                            },
                         }).showToast();
                     } else {
                         Toastify({
                             text: 'Failed to add book',
-                            backgroundColor: 'red',
+                            style: {
+                                background: 'red'
+                            },
                         }).showToast();
                         console.error('Add book error:', error);
                     }
                 });
         }
 
-        // CRUD operations
+
 
         // Function to handle editing a book
         const editBook = async (bookId) => {
@@ -252,7 +403,9 @@
             if (!token) {
                 Toastify({
                     text: 'Please login to perform this action',
-                    backgroundColor: 'red',
+                    style: {
+                        background: 'red'
+                    },
                 }).showToast();
                 return;
             }
@@ -266,32 +419,41 @@
                 .then(response => {
                     Toastify({
                         text: 'Book updated successfully',
-                        backgroundColor: 'green',
+                        style: {
+                            background: 'green'
+                        },
                     }).showToast();
-                    getBooks(); // Refresh the books list after editing
+                    getBooks();
                 })
                 .catch(error => {
                     if (error.response && error.response.status === 401) {
                         Toastify({
                             text: 'Please login to perform this action',
-                            backgroundColor: 'red',
+                            style: {
+                                background: 'red'
+                            },
                         }).showToast();
                     } else {
                         Toastify({
                             text: 'Failed to update book',
-                            backgroundColor: 'red',
+                            style: {
+                                background: 'red'
+                            },
                         }).showToast();
                         console.error('Edit book error:', error);
                     }
                 });
         }
 
+        // Function to handle deleting a book
         function deleteBook(bookId) {
             const token = localStorage.getItem('token');
             if (!token) {
                 Toastify({
                     text: 'Please login to perform this action',
-                    backgroundColor: 'red',
+                    style: {
+                        background: 'red'
+                    },
                 }).showToast();
                 return;
             }
@@ -304,7 +466,9 @@
                 .then(response => {
                     Toastify({
                         text: 'Book deleted successfully',
-                        backgroundColor: 'green',
+                        style: {
+                            background: 'green'
+                        },
                     }).showToast();
                     // Optionally, you may want to refresh the books list after deletion.
                     getBooks();
@@ -312,64 +476,62 @@
                 .catch(error => {
                     Toastify({
                         text: 'Failed to delete book',
-                        backgroundColor: 'red',
+                        style: {
+                            background: 'red'
+                        },
                     }).showToast();
                     console.error('Delete book error:', error);
                 });
         }
 
-    // On page load, check if the user is already logged in and fetch books
-    window.onload = function () {
+         // token info debug for logs
+        const tokenInfo = async () => {
+            const token = localStorage.getItem('token');
+            if (token) {
+                try {
+                    // Decode the JWT token
+                    const decodedToken = JSON.parse(atob(token.split('.')[1]));
+
+                    const username = decodedToken.username;
+                    const email = decodedToken.email;
+                    const isSuperuser = decodedToken['superuser?'];
+
+                    console.log('Username:', username);
+                    console.log('Email:', email);
+                    console.log('Is Superuser?', isSuperuser);
+
+                    // Access the expiration time
+                    const expirationTimeInSeconds = decodedToken.exp;
+                    const currentTimeInSeconds = Math.floor(Date.now() / 1000); // Convert current time to seconds
+
+                    // Calculate the time until expiration in seconds
+                    const timeUntilExpirationInSeconds = expirationTimeInSeconds - currentTimeInSeconds;
+
+                    // Convert seconds to minutes and hours
+                    const minutesUntilExpiration = Math.floor(timeUntilExpirationInSeconds / 60);
+                    const hoursUntilExpiration = Math.floor(minutesUntilExpiration / 60);
+
+                    // Now you can use this information as needed
+                    console.log('Minutes until access token expires:', minutesUntilExpiration);
+                    console.log('Hours until access token expires:', hoursUntilExpiration);
+                } catch (error) {
+                    console.error('Error decoding token:', error);
+                }
+            } else {
+                console.log('Token not found');
+            }
+        }
+        tokenInfo();
+
+
+
+
+        // On page load, check if the user is already logged in and fetch books
+        window.onload = function () {
             checkLoggedIn();
         };
 
 
-
-
-
-const token = localStorage.getItem('token');
-
-if (token) {
-    // Decode the JWT token
-    const decodedToken = JSON.parse(atob(token.split('.')[1]));
-    const username = decodedToken.username;
-    const email = decodedToken.email;
-    const isSuperuser = decodedToken['superuser?']; // Since 'superuser?' contains special character, use bracket notation
-
-    // Now you can use this information as needed, such as displaying it to the user
-    console.log('Username:', username);
-    console.log('Email:', email);
-    console.log('Is Superuser?', isSuperuser);
-} else {
-    console.log('Token not found');
-}
-
-
-if (token) {
-    try {
-        // Decode the JWT token
-        const decodedToken = JSON.parse(atob(token.split('.')[1]));
-
-        // Access the expiration time
-        const expirationTimeInSeconds = decodedToken.exp;
-        const currentTimeInSeconds = Math.floor(Date.now() / 1000); // Convert current time to seconds
-
-        // Calculate the time until expiration in seconds
-        const timeUntilExpirationInSeconds = expirationTimeInSeconds - currentTimeInSeconds;
-
-        // Convert seconds to minutes and hours
-        const minutesUntilExpiration = Math.floor(timeUntilExpirationInSeconds / 60);
-        const hoursUntilExpiration = Math.floor(minutesUntilExpiration / 60);
-
-        // Now you can use this information as needed
-        console.log('Minutes until access token expires:', minutesUntilExpiration);
-        console.log('Hours until access token expires:', hoursUntilExpiration);
-    } catch (error) {
-        console.error('Error decoding token:', error);
-    }
-} else {
-    console.log('Token not found');
-}
     </script>
 </body>
 
