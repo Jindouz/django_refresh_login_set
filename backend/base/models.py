@@ -7,6 +7,7 @@ class Book(models.Model):
     name = models.CharField(max_length=50)
     author = models.CharField(max_length=50)
     year = models.IntegerField()
+    img_path = models.ImageField(null=True,blank=True,default=None)
    
     def __str__(self):
         return f'{self.name} {self.author} {self.year} {self.user}'

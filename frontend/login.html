@@ -16,19 +16,26 @@
 <body>
 
     <div class="container">
-        <h2>Login</h2>
-        <form id="loginForm">
-            <div class="form-group">
-                <label for="username">Username:</label>
-                <input type="text" class="form-control" id="username" placeholder="Enter username">
-            </div>
-            <div class="form-group">
-                <label for="password">Password:</label>
-                <input type="password" class="form-control" id="password" placeholder="Enter password">
-            </div>
-            <button type="button" class="btn btn-primary" onclick="login()">Login</button>
+        <!-- Login Form -->
+        <div id="loginSection">
+            <h2>Login</h2>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="username">Username:</label>
+                    <input type="text" class="form-control" id="username" placeholder="Enter username">
+                </div>
+                <div class="form-group">
+                    <label for="password">Password:</label>
+                    <input type="password" class="form-control" id="password" placeholder="Enter password">
+                </div>
+                <button type="button" class="btn btn-primary" onclick="login()">Login</button>
+            </form>
+        </div>
+
+        <!-- Logout Button -->
+        <div id="logoutSection" style="display: none;">
             <button type="button" class="btn btn-secondary" onclick="logout()">Logout</button>
-        </form>
+        </div>
 
         <br>
 
@@ -46,6 +53,10 @@
                 <label for="year">Year:</label>
                 <input type="number" class="form-control" id="year" placeholder="Enter year">
             </div>
+            <div class="mb-3">
+                <label for="image" class="form-label">Book Image (Optional):</label>
+                <input type="file" id="image" name="image" class="form-control">
+            </div>
             <button type="button" class="btn btn-primary" onclick="addBook()">Add Book</button>
         </form>
 
@@ -61,6 +72,27 @@
     <script>
 
         MY_SERVER = 'http://127.0.0.1:8000/';
+
+        // Function to toggle login form visibility
+        // Function to toggle login/logout sections
+        function toggleSections(loggedIn) {
+            const loginSection = document.getElementById('loginSection');
+            const logoutSection = document.getElementById('logoutSection');
+            loginSection.style.display = loggedIn ? 'none' : 'block';
+            logoutSection.style.display = loggedIn ? 'block' : 'none';
+        }
+
+        // Function to check if user is logged in
+        function checkLoggedIn() {
+            const token = localStorage.getItem('token');
+            if (token) {
+                setAuthorizationHeader(token);
+                toggleSections(true);
+                getBooks();
+            }
+        }
+
+        // Function to perform login
         function login() {
             const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
@@ -74,6 +106,7 @@
                         text: 'Login successful',
                         backgroundColor: 'green',
                     }).showToast();
+                    toggleSections(true);
                     getBooks();
                 })
                 .catch(error => {
@@ -85,15 +118,11 @@
                 });
         }
 
+        // Function to perform logout
         function logout() {
             localStorage.removeItem('token');
-            delete axios.defaults.headers.common['Authorization'];
-            getBooks();
-            Toastify({
-                text: 'Logged out successfully',
-                backgroundColor: 'green',
-            }).showToast();
-            // Optionally, you can redirect the user to the login page after logging out
+            toggleSections(false);
+            location.reload(); // Refresh the page to clear the books list
         }
 
         function setAuthorizationHeader(token) {
@@ -114,6 +143,7 @@
             })
                 .then(response => {
                     const books = response.data;
+                    books.sort((a, b) => b.id - a.id);
                     const booksList = document.getElementById('booksList');
                     booksList.innerHTML = ''; // Clear previous books
                     books.forEach(book => {
@@ -151,6 +181,7 @@
             const name = document.getElementById('name').value;
             const author = document.getElementById('author').value;
             const year = document.getElementById('year').value;
+            const img = document.getElementById('img').value;
 
             const token = localStorage.getItem('token');
             if (!token) {
@@ -164,7 +195,8 @@
             const bookData = {
                 name: name,
                 author: author,
-                year: parseInt(year) // Ensure year is converted to an integer
+                year: parseInt(year), // Ensure year is converted to an integer
+                img : img
             };
             console.log('Book data:', bookData);
 
@@ -202,7 +234,7 @@
         // CRUD operations
 
         // Function to handle editing a book
-        const editBook= async(bookId)=> {
+        const editBook = async (bookId) => {
             // Prompt the user to enter the updated book information
             const newName = prompt("Enter the new name for the book:");
             const newAuthor = prompt("Enter the new author for the book:");
@@ -286,15 +318,58 @@
                 });
         }
 
-        // On page load, check if the user is already logged in and fetch books
-        window.onload = function () {
-            const token = localStorage.getItem('token');
-            if (token) {
-                setAuthorizationHeader(token);
-                getBooks();
-            }
+    // On page load, check if the user is already logged in and fetch books
+    window.onload = function () {
+            checkLoggedIn();
         };
 
+
+
+
+
+const token = localStorage.getItem('token');
+
+if (token) {
+    // Decode the JWT token
+    const decodedToken = JSON.parse(atob(token.split('.')[1]));
+    const username = decodedToken.username;
+    const email = decodedToken.email;
+    const isSuperuser = decodedToken['superuser?']; // Since 'superuser?' contains special character, use bracket notation
+
+    // Now you can use this information as needed, such as displaying it to the user
+    console.log('Username:', username);
+    console.log('Email:', email);
+    console.log('Is Superuser?', isSuperuser);
+} else {
+    console.log('Token not found');
+}
+
+
+if (token) {
+    try {
+        // Decode the JWT token
+        const decodedToken = JSON.parse(atob(token.split('.')[1]));
+
+        // Access the expiration time
+        const expirationTimeInSeconds = decodedToken.exp;
+        const currentTimeInSeconds = Math.floor(Date.now() / 1000); // Convert current time to seconds
+
+        // Calculate the time until expiration in seconds
+        const timeUntilExpirationInSeconds = expirationTimeInSeconds - currentTimeInSeconds;
+
+        // Convert seconds to minutes and hours
+        const minutesUntilExpiration = Math.floor(timeUntilExpirationInSeconds / 60);
+        const hoursUntilExpiration = Math.floor(minutesUntilExpiration / 60);
+
+        // Now you can use this information as needed
+        console.log('Minutes until access token expires:', minutesUntilExpiration);
+        console.log('Hours until access token expires:', hoursUntilExpiration);
+    } catch (error) {
+        console.error('Error decoding token:', error);
+    }
+} else {
+    console.log('Token not found');
+}
     </script>
 </body>
 

@@ -67,14 +67,13 @@ def books(req,id=-1):
         all_books=BookSerializer(Book.objects.all(),many=True).data
         return Response ( all_books)
     if req.method == 'POST':
-        # Ensure the request is made by an authenticated user
         if not req.user.is_authenticated:
             return Response("Unauthorized", status=status.HTTP_401_UNAUTHORIZED)
         
-        # Assign the user ID to the book being created
+        # ALT: Assign the user ID to the book being created
         # req.data['user'] = req.user.id
-
         # ser = BookSerializer(data=req.data)
+
         ser = BookSerializer(data=req.data, context={'user': req.user})
         if ser.is_valid():
             ser.save()
